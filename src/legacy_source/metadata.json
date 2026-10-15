@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Sonri Oralytic AI Detector",
+  "description": "An AI-powered application to detect early signs of stunting risk through oral health analysis. Designed for health workers, it provides rapid, visual feedback on a child's dental health to enable early intervention.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}
