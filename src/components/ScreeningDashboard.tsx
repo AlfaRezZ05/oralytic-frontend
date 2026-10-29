@@ -9,6 +9,7 @@ import {
   LogOut,
   Search,
   ChevronRight,
+  ChevronLeft,
   CheckCircle2,
   Hospital,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
   const [selectedRecord, setSelectedRecord] = useState<ScreeningRecord | null>(null);
   const [isNewScreeningOpen, setIsNewScreeningOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Sesi login nakes
   const session = getAuthSession();
@@ -128,7 +130,7 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
   }
 
   return (
-    <div className="relative min-h-screen w-full bg-[#F7F4F0] text-[#0F172A] font-sans flex flex-col md:flex-row overflow-x-hidden selection:bg-[#2F4156] selection:text-white">
+    <div className="relative h-screen w-full bg-[#F7F4F0] text-[#0F172A] font-sans flex flex-col md:flex-row items-stretch overflow-hidden selection:bg-[#2F4156] selection:text-white">
       {/* =========================================================================
           WATERMARK DEKORATIF DI SUDUT KANAN BAWAH (Sesuai Desain Figma)
           ========================================================================= */}
@@ -142,26 +144,64 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
       </motion.div>
 
       {/* =========================================================================
-          SIDEBAR KIRI (Dark Slate Navy #2F4156 dengan rounded-r-[36px])
+          SIDEBAR KIRI (Elemen Statis Terpisah - Mengisi Penuh Tinggi Layar)
           ========================================================================= */}
-      <aside className="relative z-10 w-full md:w-[260px] lg:w-[280px] bg-[#2F4156] text-white flex flex-col justify-between p-6 md:min-h-screen md:rounded-r-[36px] shadow-2xl flex-shrink-0">
-        <div className="flex flex-col gap-8">
-          {/* Logo & Judul Brand */}
-          <div className="flex items-center gap-3.5 pt-2">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center p-2 backdrop-blur-sm border border-white/15">
-              <img src={logoImage} alt="ORALYTIC" className="w-full h-full object-contain" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-black text-[20px] tracking-wider text-white leading-tight font-sans">
-                ORALYTIC
-              </span>
-              <span className="text-[10px] font-semibold tracking-widest text-slate-300 uppercase">
-                AI Oral Screening
-              </span>
-            </div>
-          </div>
+      <motion.aside
+        initial={false}
+        animate={{ width: isSidebarCollapsed ? 88 : 280 }}
+        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+        className="relative z-20 bg-[#2F4156] text-white flex flex-col justify-between p-4 md:p-5 h-screen max-h-screen md:rounded-r-[36px] shadow-2xl flex-shrink-0 select-none overflow-y-auto overflow-x-hidden"
+      >
+        <div className="flex flex-col gap-7">
+          {/* Header Brand & Tombol Minimize */}
+          {!isSidebarCollapsed ? (
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center p-2 backdrop-blur-sm border border-white/15 flex-shrink-0">
+                  <img src={logoImage} alt="ORALYTIC" className="w-full h-full object-contain" />
+                </div>
+                <div className="flex flex-col overflow-hidden">
+                  <span className="font-black text-[19px] tracking-wider text-white leading-tight font-sans truncate">
+                    ORALYTIC
+                  </span>
+                  <span className="text-[10px] font-semibold tracking-widest text-slate-300 uppercase truncate">
+                    AI Oral Screening
+                  </span>
+                </div>
+              </div>
 
-          {/* Menu Navigasi Utama dengan Smooth Animated Active Pill */}
+              {/* Tombol Minimize */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(true)}
+                title="Minimize Sidebar"
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(false)}
+                title="Perluas Sidebar"
+                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center p-2 backdrop-blur-sm border border-white/15 cursor-pointer transition-transform hover:scale-105"
+              >
+                <img src={logoImage} alt="ORALYTIC" className="w-full h-full object-contain" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(false)}
+                title="Perluas Sidebar"
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Menu Navigasi Utama */}
           <nav className="flex flex-col gap-1.5 relative">
             {(
               [
@@ -176,7 +216,10 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
                   key={key}
                   type="button"
                   onClick={() => setActiveTab(key)}
-                  className={`relative flex items-center gap-3.5 px-4 py-3 rounded-xl text-[14px] font-medium transition-colors cursor-pointer select-none ${
+                  title={label}
+                  className={`relative flex items-center ${
+                    isSidebarCollapsed ? 'justify-center px-0 py-3' : 'gap-3.5 px-4 py-3'
+                  } rounded-xl text-[14px] font-medium transition-colors cursor-pointer select-none ${
                     isActive ? 'text-white font-semibold' : 'text-slate-300 hover:text-white'
                   }`}
                 >
@@ -187,8 +230,17 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
                       transition={{ type: 'spring', stiffness: 450, damping: 35 }}
                     />
                   )}
-                  <Icon className="w-4 h-4 relative z-10" />
-                  <span className="relative z-10">{label}</span>
+                  <Icon className="w-5 h-5 relative z-10 flex-shrink-0" />
+                  {!isSidebarCollapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -6 }}
+                      className="relative z-10 whitespace-nowrap"
+                    >
+                      {label}
+                    </motion.span>
+                  )}
                 </button>
               );
             })}
@@ -196,17 +248,20 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
         </div>
 
         {/* Bagian Bawah Sidebar: Tombol Mulai Skrining & Logout */}
-        <div className="flex flex-col gap-3 pt-6 border-t border-white/10">
+        <div className="flex flex-col gap-3 pt-6 border-t border-white/10 mt-auto">
           <motion.button
             type="button"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
             onClick={() => setIsNewScreeningOpen(true)}
-            className="w-full h-11 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-[13px] flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs"
+            title="Mulai Skrining Baru"
+            className={`h-11 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-[13px] flex items-center justify-center ${
+              isSidebarCollapsed ? 'w-11 px-0 mx-auto' : 'w-full gap-2 px-3'
+            } transition-colors cursor-pointer shadow-xs`}
           >
-            <Plus className="w-4 h-4" />
-            <span>Mulai Skrining Baru</span>
+            <Plus className="w-4 h-4 flex-shrink-0" />
+            {!isSidebarCollapsed && <span className="whitespace-nowrap">Mulai Skrining Baru</span>}
           </motion.button>
 
           <motion.button
@@ -214,18 +269,21 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={onLogout}
-            className="flex items-center justify-center gap-2 w-full py-2.5 text-[12px] font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Keluar Sesi"
+            className={`flex items-center justify-center ${
+              isSidebarCollapsed ? 'w-10 h-10 mx-auto' : 'w-full gap-2 py-2.5'
+            } text-[12px] font-medium text-slate-400 hover:text-white transition-colors cursor-pointer`}
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Keluar Sesi</span>
+            <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
+            {!isSidebarCollapsed && <span className="whitespace-nowrap">Keluar Sesi</span>}
           </motion.button>
         </div>
-      </aside>
+      </motion.aside>
 
       {/* =========================================================================
-          KONTEN UTAMA (Background Krem Hangat #F7F4F0)
+          KONTEN UTAMA (Elemen Terpisah - Satu-Satunya Bagian yang Di-Scroll)
           ========================================================================= */}
-      <main className="relative z-10 flex-1 flex flex-col px-6 sm:px-10 lg:px-12 py-8 max-w-[1360px] mx-auto w-full">
+      <main className="relative z-10 flex-1 min-w-0 h-screen overflow-y-auto flex flex-col px-6 sm:px-10 lg:px-12 py-8 max-w-[1360px] mx-auto w-full">
         {/* Top Header Row */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
           <div className="flex flex-col gap-1">

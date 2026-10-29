@@ -31,6 +31,14 @@ const ANGLE_TABS = [
 
 type AngleId = (typeof ANGLE_TABS)[number]['id'];
 
+const ANGLE_GUIDES: Record<AngleId, string> = {
+  depan: 'Posisikan gigi depan dan gusi di dalam panduan oval',
+  oklusal_atas: 'Posisikan permukaan kunyah gigi rahang atas',
+  oklusal_bawah: 'Posisikan permukaan kunyah gigi rahang bawah',
+  bukal_kanan: 'Posisikan gigi dan gusi sisi pipi kanan',
+  bukal_kiri: 'Posisikan gigi dan gusi sisi pipi kiri',
+};
+
 const inputCls =
   'h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-[15px] text-[#0F172A] outline-none transition-shadow placeholder:text-slate-400 focus:border-[#2F4156] focus:ring-4 focus:ring-[#2F4156]/10';
 
@@ -123,6 +131,7 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
   // Langkah 2: Foto Rongga Mulut
   const [selectedAngle, setSelectedAngle] = useState<AngleId>('depan');
   const [capturedAngles, setCapturedAngles] = useState<Record<string, string>>({});
+  const [isFlashing, setIsFlashing] = useState(false);
   const oralConditionPreset: OralPreset = 'caries';
 
   // Langkah 3: Menganalisis
@@ -162,14 +171,6 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
     setCurrentStep(2);
   };
 
-  // Simulasi ambil foto sudut
-  const handleCapturePhoto = () => {
-    setCapturedAngles((prev) => ({
-      ...prev,
-      [selectedAngle]: 'captured',
-    }));
-  };
-
   // Selesai Step 2 & lanjut ke Step 3 (Menganalisis)
   const handleStartAnalysis = () => {
     setCurrentStep(3);
@@ -184,6 +185,43 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
         setAnalysisProgress(p);
       }
     }, 400);
+  };
+
+  // Ambil foto sudut: otomatis lanjut sendiri ke posisi selanjutnya
+  const handleCapturePhoto = () => {
+    // Efek flash visual shutter kamera
+    setIsFlashing(true);
+    setTimeout(() => setIsFlashing(false), 220);
+
+    setCapturedAngles((prev) => {
+      const updated = {
+        ...prev,
+        [selectedAngle]: 'captured',
+      };
+
+      // Cari indeks posisi sudut saat ini
+      const currentIndex = ANGLE_TABS.findIndex((tab) => tab.id === selectedAngle);
+
+      if (currentIndex !== -1 && currentIndex < ANGLE_TABS.length - 1) {
+        // Otomatis berpindah ke sudut berikutnya
+        const nextAngle = ANGLE_TABS[currentIndex + 1].id;
+        setSelectedAngle(nextAngle);
+      } else {
+        // Jika sudah di sudut terakhir, periksa apakah ada sudut sebelumnya yang terlewat
+        const uncaptured = ANGLE_TABS.find((tab) => !updated[tab.id]);
+        if (uncaptured) {
+          setSelectedAngle(uncaptured.id);
+        } else {
+          // Seluruh 5 sudut foto sudah lengkap terambil!
+          // Beri jeda 600ms agar user melihat centang terakhir lalu otomatis lanjut ke proses analisis
+          setTimeout(() => {
+            handleStartAnalysis();
+          }, 600);
+        }
+      }
+
+      return updated;
+    });
   };
 
   // Simpan record resmi dan kembali ke dashboard
@@ -602,11 +640,30 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
               {/* Kolom Kiri: Viewfinder Kamera */}
               <div className="flex flex-col gap-4">
                 <div className="relative w-full aspect-[4/3] max-h-[440px] bg-white rounded-[28px] border border-slate-200/80 shadow-sm flex flex-col items-center justify-center p-6 overflow-hidden">
-                  {/* Oval Panduan Putus-putus */}
+                  {/* Efek Shutter Flash saat foto diambil */}
+                  <AnimatePresence>
+                    {isFlashing && (
+                      <motion.div
+                        initial={{ opacity: 0.85 }}
+                        animate={{ opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.22, ease: 'easeOut' }}
+                        className="absolute inset-0 bg-white z-20 pointer-events-none"
+                      />
+                    )}
+                  </AnimatePresence>
+
+                  {/* Oval Panduan Putus-putus dengan Panduan Dinamis Sesuai Posisi */}
                   <div className="relative w-[340px] max-w-[85%] h-[200px] border-2 border-dashed border-[#0F172A] rounded-[50%] flex flex-col items-center justify-center text-center p-6 pointer-events-none">
-                    <p className="text-[14px] text-[#475569] font-medium leading-relaxed max-w-[220px]">
-                      Posisikan gigi depan dan gusi di dalam panduan oval
-                    </p>
+                    <motion.p
+                      key={selectedAngle}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="text-[14px] text-[#475569] font-medium leading-relaxed max-w-[240px]"
+                    >
+                      {ANGLE_GUIDES[selectedAngle] || 'Posisikan gigi dan gusi di dalam panduan oval'}
+                    </motion.p>
                   </div>
 
                   {/* Indikator Cahaya & Fokus (Kiri Bawah Viewfinder) */}
@@ -629,7 +686,7 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
                       whileTap={{ scale: 0.92 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                       onClick={handleCapturePhoto}
-                      title="Ambil Foto"
+                      title="Ambil Foto (Otomatis Lanjut ke Posisi Berikutnya)"
                       className="w-16 h-16 rounded-full border-3 border-[#3C6E71] bg-white flex items-center justify-center shadow-lg cursor-pointer group"
                     >
                       <div className="w-12 h-12 rounded-full border-2 border-[#2F4156] bg-slate-50 flex items-center justify-center group-hover:bg-slate-100 transition-colors">
@@ -645,7 +702,6 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
                 {ANGLE_TABS.map((tab, idx) => {
                   const isCaptured = Boolean(capturedAngles[tab.id]);
                   const isCurrent = selectedAngle === tab.id;
-                  const isSpecialFigmaActive = idx === 4; // Slot 5 bergaris biru aktif di Figma
 
                   return (
                     <motion.div
@@ -654,28 +710,37 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
                       whileTap={{ scale: 0.95 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                       onClick={() => setSelectedAngle(tab.id)}
-                      className={`w-[78px] h-[78px] sm:w-[84px] sm:h-[84px] rounded-[22px] bg-white flex items-center justify-center shadow-xs cursor-pointer transition-all ${
-                        isCurrent || isSpecialFigmaActive
-                          ? 'border-2 border-[#0284C7] ring-4 ring-[#0284C7]/15'
+                      title={`Posisi ${idx + 1}: ${tab.label}`}
+                      className={`relative w-[78px] h-[78px] sm:w-[84px] sm:h-[84px] rounded-[22px] bg-white flex flex-col items-center justify-center shadow-xs cursor-pointer transition-all ${
+                        isCurrent
+                          ? 'border-2 border-[#0284C7] ring-4 ring-[#0284C7]/20 shadow-md'
+                          : isCaptured
+                          ? 'border border-emerald-300 bg-emerald-50/20'
                           : 'border border-slate-200 hover:border-slate-300'
                       }`}
                     >
                       {isCaptured ? (
-                        <div className="w-full h-full rounded-[20px] bg-slate-100 flex items-center justify-center text-emerald-600 font-bold text-xs">
+                        <div className="w-full h-full rounded-[20px] bg-slate-100/90 flex flex-col items-center justify-center text-emerald-600 font-bold text-xs">
                           <Check className="w-6 h-6" />
+                          <span className="text-[10px] text-emerald-700 font-medium mt-0.5">{tab.label}</span>
                         </div>
                       ) : (
-                        // Ikon Radial Spinner / Dashed Circle persis di Figma
-                        <svg className="w-8 h-8 text-slate-400 animate-spin-slow" viewBox="0 0 24 24" fill="none">
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="9"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeDasharray="4 4"
-                          />
-                        </svg>
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          {/* Ikon Radial Spinner / Dashed Circle persis di Figma */}
+                          <svg className={`w-7 h-7 ${isCurrent ? 'text-[#0284C7]' : 'text-slate-400'} animate-spin-slow`} viewBox="0 0 24 24" fill="none">
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="9"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeDasharray="4 4"
+                            />
+                          </svg>
+                          <span className={`text-[10px] font-semibold ${isCurrent ? 'text-[#0284C7]' : 'text-slate-500'}`}>
+                            {tab.label}
+                          </span>
+                        </div>
                       )}
                     </motion.div>
                   );

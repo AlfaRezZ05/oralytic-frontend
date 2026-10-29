@@ -69,11 +69,7 @@ export function App() {
   }, [currentScreen]);
 
   return (
-    <div
-      className={`relative w-full min-h-screen bg-white font-sans antialiased text-[#1E293B] ${
-        currentScreen === "dashboard" ? "overflow-y-auto" : "overflow-hidden"
-      }`}
-    >
+    <div className="relative w-full h-screen bg-white font-sans antialiased text-[#1E293B] flex flex-col overflow-hidden">
       <AnimatePresence mode="wait">
         {currentScreen === "splash" && <SplashScreen key="splash" />}
         {currentScreen === "loading" && (
@@ -92,7 +88,7 @@ export function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full min-h-screen"
+            className="w-full h-screen flex flex-col flex-1 overflow-hidden"
           >
             <ScreeningDashboard onLogout={() => changeScreen("login")} />
           </motion.div>
