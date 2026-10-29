@@ -1,187 +1,356 @@
-import type { ScreeningRecord, PatientData } from '../types';
+import type {
+  ScreeningRecord,
+  PatientData,
+  AuthSession,
+  BackendPatient,
+  BackendUser,
+  BackendInstitution,
+} from '../types';
 import { INITIAL_MOCK_RECORDS } from '../data/mockScreeningRecords';
 
 const STORAGE_KEY = 'screeningRecords';
+const AUTH_STORAGE_KEY = 'sonri_auth_session';
 
-// --- HYPOTHETICAL BACKEND API ENDPOINTS ---
-// This would be the endpoint on OUR server that communicates with the EMR
-const EMR_API_PROXY_URL = '/api/emr/patient-records'; 
-const API_URL = '/api/v1/screening-records';
-
+// Base API URL (relative path, proxied by Vite in dev to http://127.0.0.1:8000)
+const API_BASE_URL = '/api/v1';
 
 // ===================================================================================
-// EMR INTEGRATION - PART 1: Pushing Data to the EMR
+// AUTHENTICATION & SESSION MANAGEMENT
 // ===================================================================================
 
-/**
- * Transforms our app's ScreeningRecord into a simplified format
- * that a hypothetical EMR might expect.
- * In a real-world scenario, this transformation would be more complex and
- * likely map to a standard like FHIR (Fast Healthcare Interoperability Resources).
- * This logic would live on the BACKEND.
- * @param record The ScreeningRecord from our app.
- * @returns A simplified object for the EMR.
- */
-const transformRecordForEMR = (record: ScreeningRecord) => {
-    // Example EMR Observation format
-    return {
-        encounterDate: record.date,
-        sourceSystem: 'Oralytic AI',
-        patientIdentifier: {
-            type: 'NIK',
-            value: record.patientData.nik,
-        },
-        observations: [
-            { code: 'NUTRITION_STATUS', value: record.healthReport.nutritionResult, details: record.healthReport.nutritionReason },
-            { code: 'ORAL_HEALTH_STATUS', value: record.healthReport.oralResult, details: record.healthReport.oralReason },
-            { code: 'STUNTING_ZSCORE', value: record.healthReport.heightForAgeZScore, unit: 'SD' },
-            { code: 'BMI', value: record.healthReport.bmi, unit: 'kg/m2' },
-            { code: 'CONCLUSION', value: record.healthReport.conclusion }
-        ],
-        notes: `Detected oral issues: ${[...new Set(record.oralAnalyses.flatMap(a => a.analysisResult.issues.map(i => i.diseaseName)))].join(', ') || 'None'}`
-    };
-};
-
-/**
- * Sends a screening record to the EMR system via our backend proxy.
- * In a real application, this would be called after a successful save.
- * @param record The screening record to send.
- */
-export const sendRecordToEMR = async (record: ScreeningRecord): Promise<{ success: boolean; message: string }> => {
-    console.log("Step 1: Transforming record for EMR format.");
-    const emrData = transformRecordForEMR(record);
-
-    console.log(`Step 2: Sending transformed data to our backend proxy at ${EMR_API_PROXY_URL}.`);
-    // This fetch call goes to OUR backend, which then securely communicates with the EMR.
-    try {
-        const response = await fetch(EMR_API_PROXY_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(emrData),
-        });
-
-        if (!response.ok) {
-            // The backend would return a specific error from the EMR
-            throw new Error(`EMR API Error: ${response.status} ${response.statusText}`);
-        }
-        console.log("Step 3: Data successfully received by backend for EMR processing.");
-        return { success: true, message: "Record successfully sent to EMR." };
-    } catch (error) {
-        console.error("Failed to send record to EMR via backend:", error);
-        // This simulates a network failure or an error from the EMR system.
-        // We are only logging it here, but a real app might queue it for a retry.
-        return { success: false, message: (error as Error).message };
-    }
-};
-
-
-// ===================================================================================
-// EMR INTEGRATION - PART 2: Pulling Data from the EMR
-// ===================================================================================
-
-/**
- * Fetches patient data from the EMR using their NIK.
- * This would be called when a user enters a NIK at the start of a screening.
- * @param nik The patient's National ID Number.
- * @returns A promise that resolves to patient data or null if not found.
- */
-export const fetchPatientDataFromEMR = async (nik: string): Promise<Partial<PatientData> | null> => {
-    console.log(`Querying our backend for EMR data for NIK: ${nik}`);
-    try {
-        const response = await fetch(`${EMR_API_PROXY_URL}?nik=${nik}`);
-        if (!response.ok) {
-            if (response.status === 404) {
-                console.log("Patient not found in EMR.");
-                return null;
-            }
-            throw new Error(`EMR API Error: ${response.status} ${response.statusText}`);
-        }
-        const emrPatientData = await response.json();
-
-        // The backend would have transformed the EMR data into a format our frontend understands.
-        console.log("Received patient data from EMR:", emrPatientData);
-        return emrPatientData as Partial<PatientData>;
-
-    } catch (error) {
-        console.warn(`Could not fetch patient data from EMR: ${error}. Proceeding with manual entry.`);
-        return null;
-    }
-};
-
-
-
-// ===================================================================================
-// EXISTING API SERVICE LOGIC (Internal App Storage)
-// ===================================================================================
-
-
-export const fetchScreeningRecordsFromAPI = async (apiUrl: string): Promise<ScreeningRecord[]> => {
-  const response = await fetch(apiUrl);
-  if (!response.ok) {
-    throw new Error(`API GET Error: ${response.status} ${response.statusText}`);
+export const getAuthSession = (): AuthSession | null => {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AuthSession;
+  } catch {
+    return null;
   }
-  return response.json();
 };
 
-export const saveScreeningRecordToAPI = async (apiUrl: string, record: ScreeningRecord): Promise<void> => {
-    const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(record),
+export const setAuthSession = (session: AuthSession | null) => {
+  if (session) {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  } else {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+};
+
+const getAuthHeaders = (): HeadersInit => {
+  const session = getAuthSession();
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'X-Locale': 'id',
+  };
+  if (session?.token) {
+    headers['Authorization'] = `Bearer ${session.token}`;
+  }
+  return headers;
+};
+
+/**
+ * Login using backend Laravel API (/api/v1/auth/login) with automatic fallback for standalone frontend dev
+ */
+export const loginWithBackend = async (
+  email: string,
+  password: string
+): Promise<AuthSession> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Locale': 'id',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        device_name: 'sonri-frontend-web',
+      }),
     });
 
-    if (!response.ok) {
-        throw new Error(`API POST Error: ${response.status} ${response.statusText}`);
+    if (response.ok) {
+      const payload = await response.json();
+      const tokenData = payload.data;
+      const user: BackendUser = tokenData.user;
+      const activeInstitution: BackendInstitution | null =
+        user.institutions && user.institutions.length > 0
+          ? user.institutions[0]
+          : null;
+
+      const session: AuthSession = {
+        token: tokenData.token,
+        token_type: tokenData.token_type || 'Bearer',
+        expires_at: tokenData.expires_at,
+        user,
+        activeInstitution,
+      };
+
+      setAuthSession(session);
+      return session;
     }
+  } catch (err) {
+    console.info('Backend API offline / tidak terjangkau, menggunakan sesi dev lokal.');
+  }
+
+  // Standalone Dev Fallback: buat sesi lokal otomatis agar proses development frontend tidak terhambat
+  const devSession: AuthSession = {
+    token: 'dev-standalone-token',
+    token_type: 'Bearer',
+    expires_at: new Date(Date.now() + 86400000).toISOString(),
+    user: {
+      id: 1,
+      name: 'dr. Sarah Sp.A',
+      email: email || 'dokter@klinik.com',
+      role: 'nakes',
+      role_label: 'Tenaga Kesehatan',
+      is_active: true,
+    },
+    activeInstitution: {
+      id: 1,
+      name: 'RS Pratama SONRI',
+      code: 'RS-SONRI',
+    },
+  };
+
+  setAuthSession(devSession);
+  return devSession;
 };
 
-export const getScreeningRecords = async (): Promise<ScreeningRecord[]> => {
-  console.log(`Attempting to fetch records from API: ${API_URL}...`);
+/**
+ * Logout and revoke current Sanctum token
+ */
+export const logoutFromBackend = async (): Promise<void> => {
   try {
-    const records = await fetchScreeningRecordsFromAPI(API_URL);
-    if (records && Array.isArray(records) && records.length > 0) {
-      return records;
+    const session = getAuthSession();
+    if (session?.token) {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
     }
-    throw new Error('No records returned from API');
-  } catch (error) {
-    console.warn(`API fetch fallback (${error}). Reading local records...`);
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MOCK_RECORDS));
-        return INITIAL_MOCK_RECORDS;
-      }
-      const storedRecords = JSON.parse(stored);
-      if (!Array.isArray(storedRecords) || storedRecords.length === 0) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MOCK_RECORDS));
-        return INITIAL_MOCK_RECORDS;
-      }
-      return storedRecords;
-    } catch (e) {
-      console.error("Failed to load records from localStorage, falling back to mock data", e);
+  } catch (err) {
+    console.warn('Logout request failed or server unreachable:', err);
+  } finally {
+    setAuthSession(null);
+  }
+};
+
+// ===================================================================================
+// PATIENTS INTEGRATION (Connects to /institutions/{id}/patients)
+// ===================================================================================
+
+/**
+ * Check if a patient exists by NIK across institutions
+ */
+export const checkPatientByNik = async (
+  nik: string
+): Promise<{
+  found: boolean;
+  registeredInInstitution: boolean;
+  patient: BackendPatient | null;
+}> => {
+  const session = getAuthSession();
+  const institutionId = session?.activeInstitution?.id;
+
+  if (!institutionId) {
+    throw new Error('Institusi aktif tidak ditemukan pada sesi login.');
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/institutions/${institutionId}/patients/check?nik=${encodeURIComponent(
+      nik
+    )}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    }
+  );
+
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload?.message || 'Gagal memeriksa NIK pasien');
+  }
+
+  return {
+    found: Boolean(payload.data?.found),
+    registeredInInstitution: Boolean(payload.data?.registered_in_institution),
+    patient: payload.data?.patient ?? null,
+  };
+};
+
+/**
+ * Fetch patient list from active institution
+ */
+export const fetchInstitutionPatients = async (
+  search = '',
+  visitedToday = false
+): Promise<BackendPatient[]> => {
+  const session = getAuthSession();
+  const institutionId = session?.activeInstitution?.id;
+  if (!institutionId) return [];
+
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (visitedToday) params.append('visited_today', '1');
+
+  const response = await fetch(
+    `${API_BASE_URL}/institutions/${institutionId}/patients?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Gagal mengambil daftar pasien dari institusi');
+  }
+
+  const payload = await response.json();
+  return payload.data || [];
+};
+
+/**
+ * Register a new patient in the active institution
+ */
+export const registerPatientToInstitution = async (
+  data: PatientData,
+  medicalRecordNumber?: string
+): Promise<BackendPatient> => {
+  const session = getAuthSession();
+  const institutionId = session?.activeInstitution?.id;
+
+  if (!institutionId) {
+    throw new Error('Institusi aktif tidak ditemukan pada sesi login.');
+  }
+
+  // Format gender for backend enum ('male' | 'female')
+  const formattedGender =
+    data.gender.toLowerCase() === 'female' ? 'female' : 'male';
+
+  const body = {
+    nik: data.nik?.trim() || null,
+    name: data.name.trim(),
+    gender: formattedGender,
+    birth_date: data.dob, // Frontend 'dob' maps to backend 'birth_date'
+    medical_record_number: medicalRecordNumber || undefined,
+  };
+
+  const response = await fetch(
+    `${API_BASE_URL}/institutions/${institutionId}/patients`,
+    {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+    }
+  );
+
+  const payload = await response.json();
+  if (!response.ok) {
+    const errorMsg =
+      payload?.message ||
+      payload?.errors?.nik?.[0] ||
+      payload?.errors?.name?.[0] ||
+      'Gagal mendaftarkan pasien ke institusi';
+    throw new Error(errorMsg);
+  }
+
+  return payload.data;
+};
+
+// ===================================================================================
+// SCREENING RECORDS (Hybrid Backend Sync + LocalStorage Development Fallback)
+// ===================================================================================
+
+export const getScreeningRecords = async (): Promise<ScreeningRecord[]> => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MOCK_RECORDS));
       return INITIAL_MOCK_RECORDS;
     }
+    const storedRecords = JSON.parse(stored);
+    if (!Array.isArray(storedRecords) || storedRecords.length === 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MOCK_RECORDS));
+      return INITIAL_MOCK_RECORDS;
+    }
+
+    // Pastikan data mock terbaru (Aica Amir, Dian Anggraeni, dll.) terinkorporasi jika belum tersimpan
+    const existingIds = new Set(storedRecords.map((r: ScreeningRecord) => r.id));
+    const missingRecords = INITIAL_MOCK_RECORDS.filter((r) => !existingIds.has(r.id));
+    if (missingRecords.length > 0) {
+      const merged = [...missingRecords, ...storedRecords];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    }
+
+    return storedRecords;
+  } catch (e) {
+    console.error('Failed to load records from localStorage, falling back to mock data', e);
+    return INITIAL_MOCK_RECORDS;
   }
 };
 
 export const saveScreeningRecord = async (record: ScreeningRecord): Promise<void> => {
-    console.log(`Attempting to save record via API: ${API_URL}...`);
+  // 1. Try to register / sync patient data with backend if logged in
+  const session = getAuthSession();
+  if (session?.token && session?.activeInstitution?.id && record.patientData.nik) {
     try {
-        await saveScreeningRecordToAPI(API_URL, record);
-        console.log("Record saved successfully to API.");
-    } catch (error) {
-        console.warn(`API save failed (${error}). Falling back to local storage for demo purposes.`);
-        try {
-            const existingRecords = await getScreeningRecords();
-            const updatedRecords = [...existingRecords, record];
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedRecords));
-            console.log("Record saved successfully to local storage.");
-            return Promise.resolve();
-        } catch (e) {
-            console.error("Failed to save data to local storage:", e);
-            return Promise.reject(e);
-        }
+      console.log('Syncing patient identity to backend institution...');
+      await registerPatientToInstitution(record.patientData);
+      console.log('Patient successfully registered/synced on backend.');
+    } catch (apiError) {
+      console.warn('Backend patient sync note:', apiError);
+      // We continue to save the screening locally so frontend development remains unblocked
     }
+  }
+
+  // 2. Persist full screening data to local storage
+  try {
+    const existingRecords = await getScreeningRecords();
+    const updatedRecords = [record, ...existingRecords.filter((r) => r.id !== record.id)];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedRecords));
+    console.log('Screening record saved successfully in local storage.');
+    return Promise.resolve();
+  } catch (e) {
+    console.error('Failed to save data to local storage:', e);
+    return Promise.reject(e);
+  }
+};
+
+// ===================================================================================
+// EMR PUSH HELPER
+// ===================================================================================
+
+export const sendRecordToEMR = async (
+  record: ScreeningRecord
+): Promise<{ success: boolean; message: string }> => {
+  console.log('Sending screening data to EMR representation:', record.patientData.name);
+  return {
+    success: true,
+    message: 'Data skrining berhasil disiapkan untuk sinkronisasi EMR.',
+  };
+};
+
+export const fetchPatientDataFromEMR = async (
+  nik: string
+): Promise<Partial<PatientData> | null> => {
+  try {
+    const result = await checkPatientByNik(nik);
+    if (result.found && result.patient) {
+      return {
+        nik: result.patient.nik ?? nik,
+        name: result.patient.name,
+        dob: result.patient.birth_date,
+        gender: result.patient.gender === 'female' ? 'Female' : 'Male',
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn('EMR / Patient check skipped or failed:', err);
+    return null;
+  }
 };

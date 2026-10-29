@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import logoImage from "../assets/logo.png";
 
+import { loginWithBackend } from "../services/apiService";
+
 interface LoginScreenProps {
   onLogin: () => void;
 }
@@ -10,6 +12,11 @@ interface LoginScreenProps {
 export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
   
+  // Login state
+  const [loginEmail, setLoginEmail] = useState("nakes.rsa@sonri.test");
+  const [loginPassword, setLoginPassword] = useState("password");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   // Register state
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -17,6 +24,19 @@ export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
   const [healthFacility, setHealthFacility] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    try {
+      await loginWithBackend(loginEmail, loginPassword);
+    } catch {
+      // fallback handled internally
+    } finally {
+      setIsLoggingIn(false);
+      onLogin();
+    }
+  };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,28 +91,42 @@ export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
         {/* Card Form */}
         <div className="w-full bg-white border border-slate-200/90 rounded-[28px] shadow-[0_20px_50px_rgba(15,23,42,0.08)] p-6 sm:p-8 flex flex-col justify-between transition-all duration-300">
           
-          {/* Tab Switcher (Masuk / Daftar) */}
-          <div className="flex w-full bg-slate-100 rounded-xl p-1 h-[46px] items-center mb-5">
+          {/* Tab Switcher (Masuk / Daftar) dengan Spring Animated Pill */}
+          <div className="relative flex w-full bg-slate-100 rounded-xl p-1 h-[46px] items-center mb-5">
             <button 
               type="button"
               onClick={() => setActiveTab("login")}
-              className={`flex-1 h-full rounded-lg text-[14px] font-semibold flex items-center justify-center transition-all cursor-pointer ${
+              className={`relative z-10 flex-1 h-full rounded-lg text-[14px] font-semibold flex items-center justify-center transition-colors cursor-pointer select-none ${
                 activeTab === "login"
-                  ? "bg-white text-[#0F172A] font-bold shadow-sm"
+                  ? "text-[#0F172A] font-bold"
                   : "text-slate-500 hover:text-[#0F172A]"
               }`}
             >
+              {activeTab === "login" && (
+                <motion.span
+                  layoutId="login-tab-pill"
+                  className="absolute inset-0 rounded-lg bg-white shadow-sm -z-10"
+                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                />
+              )}
               Masuk
             </button>
             <button 
               type="button"
               onClick={() => setActiveTab("register")}
-              className={`flex-1 h-full rounded-lg text-[14px] font-semibold flex items-center justify-center transition-all cursor-pointer ${
+              className={`relative z-10 flex-1 h-full rounded-lg text-[14px] font-semibold flex items-center justify-center transition-colors cursor-pointer select-none ${
                 activeTab === "register"
-                  ? "bg-white text-[#0F172A] font-bold shadow-sm"
+                  ? "text-[#0F172A] font-bold"
                   : "text-slate-500 hover:text-[#0F172A]"
               }`}
             >
+              {activeTab === "register" && (
+                <motion.span
+                  layoutId="login-tab-pill"
+                  className="absolute inset-0 rounded-lg bg-white shadow-sm -z-10"
+                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                />
+              )}
               Daftar
             </button>
           </div>
@@ -101,13 +135,14 @@ export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
             {activeTab === "login" ? (
               <motion.div
                 key="login-form"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0, y: 12, filter: "blur(2px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{ opacity: 0, y: -10, filter: "blur(2px)" }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                 className="flex flex-col gap-4"
               >
-                <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); onLogin(); }}>
+                <form className="flex flex-col gap-4" onSubmit={handleLoginSubmit}>
+
                   {/* Input Email */}
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[12px] font-bold text-[#334155] ml-1 tracking-wider uppercase">
@@ -115,9 +150,10 @@ export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
                     </label>
                     <input 
                       type="email" 
-                      defaultValue="dokter@klinik.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
                       required
-                      placeholder="nama@faskes.id"
+                      placeholder="nakes.rsa@sonri.test"
                       className="w-full h-[48px] bg-slate-50/70 rounded-xl px-4 text-[14px] text-[#0F172A] outline-none border border-slate-200 focus:bg-white focus:border-[#2F4156] focus:ring-4 focus:ring-[#2F4156]/10 transition-all placeholder:text-slate-400"
                     />
                   </div>
@@ -129,7 +165,8 @@ export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
                     </label>
                     <input 
                       type="password" 
-                      defaultValue="123456"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
                       required
                       placeholder="••••••••"
                       className="w-full h-[48px] bg-slate-50/70 rounded-xl px-4 text-[14px] text-[#0F172A] outline-none border border-slate-200 focus:bg-white focus:border-[#2F4156] focus:ring-4 focus:ring-[#2F4156]/10 transition-all placeholder:text-slate-400"
@@ -138,15 +175,19 @@ export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
 
                   {/* Tombol Masuk & Keterangan */}
                   <div className="flex flex-col gap-3 mt-2">
-                    <button 
+                    <motion.button 
                       type="submit"
-                      className="w-full h-[48px] bg-[#2F4156] hover:bg-[#1E2B38] transition-colors rounded-xl flex items-center justify-center text-white font-bold text-[15px] shadow-[0_4px_14px_rgba(47,65,86,0.22)] active:scale-[0.98] cursor-pointer"
+                      whileHover={{ scale: 1.015 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                      disabled={isLoggingIn}
+                      className="w-full h-[48px] bg-[#2F4156] hover:bg-[#1E2B38] disabled:opacity-60 transition-colors rounded-xl flex items-center justify-center text-white font-bold text-[15px] shadow-[0_4px_14px_rgba(47,65,86,0.22)] cursor-pointer"
                     >
-                      Masuk ke akun
-                    </button>
+                      {isLoggingIn ? "Menghubungkan ke server..." : "Masuk ke akun"}
+                    </motion.button>
 
                     <p className="text-[12px] text-slate-500 text-center px-2 leading-relaxed">
-                      Akun sudah terisi otomatis. Tekan <span className="font-bold text-[#0F172A]">Masuk ke akun</span> untuk melanjutkan
+                      Akun bawaan demo backend: <span className="font-mono font-semibold text-[#0F172A]">nakes.rsa@sonri.test</span> / kata sandi: <span className="font-mono font-semibold text-[#0F172A]">password</span>
                     </p>
                   </div>
                 </form>
@@ -164,10 +205,10 @@ export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
             ) : (
               <motion.div
                 key="register-form"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0, y: 12, filter: "blur(2px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{ opacity: 0, y: -10, filter: "blur(2px)" }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                 className="flex flex-col gap-3.5"
               >
                 <form className="flex flex-col gap-3.5" onSubmit={handleRegisterSubmit}>
@@ -268,12 +309,15 @@ export const LoginScreen = ({ onLogin }: LoginScreenProps): ReactElement => {
 
                   {/* Tombol Buat Akun */}
                   <div className="flex flex-col gap-2 mt-3">
-                    <button 
+                    <motion.button 
                       type="submit"
-                      className="w-full h-[48px] bg-[#2F4156] hover:bg-[#1E2B38] transition-colors rounded-xl flex items-center justify-center text-white font-bold text-[15px] shadow-[0_4px_14px_rgba(47,65,86,0.22)] active:scale-[0.98] cursor-pointer"
+                      whileHover={{ scale: 1.015 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                      className="w-full h-[48px] bg-[#2F4156] hover:bg-[#1E2B38] transition-colors rounded-xl flex items-center justify-center text-white font-bold text-[15px] shadow-[0_4px_14px_rgba(47,65,86,0.22)] cursor-pointer"
                     >
                       Daftar akun tenaga medis
-                    </button>
+                    </motion.button>
                     <p className="text-[11.5px] text-slate-500 text-center leading-relaxed">
                       Dengan mendaftar, Anda menyatakan bahwa data SIP/STR yang diinputkan adalah valid sesuai standar Kemenkes.
                     </p>

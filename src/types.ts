@@ -107,6 +107,8 @@ export interface HealthReportData {
 export interface ScreeningRecord {
     id: string;
     date: string;
+    patientCategory?: 'Anak' | 'Ibu Hamil';
+    validationStatus?: 'pending' | 'validated';
     patientData: PatientData;
     stuntingData: StuntingScreeningData;
     oralAnalyses: {
@@ -114,4 +116,54 @@ export interface ScreeningRecord {
         analysisResult: OralAnalysisResult;
     }[];
     healthReport: HealthReportData;
+}
+
+// Backend Integration Types
+export interface BackendInstitution {
+    id: number;
+    name: string;
+    code: string;
+    address?: string | null;
+    phone?: string | null;
+}
+
+export interface BackendUser {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string | null;
+    role: 'super_admin' | 'institution_admin' | 'nakes';
+    role_label: string;
+    is_active: boolean;
+    institutions?: BackendInstitution[];
+}
+
+export interface BackendPatientRegistration {
+    medical_record_number?: string | null;
+    registered_at?: string | null;
+    last_visit_at?: string | null;
+}
+
+export interface BackendPatient {
+    id: number;
+    nik: string | null;
+    name: string;
+    gender: 'male' | 'female';
+    gender_label: string;
+    birth_place?: string | null;
+    birth_date: string; // YYYY-MM-DD
+    age?: number;
+    address?: string | null;
+    phone?: string | null;
+    guardian_name?: string | null;
+    satusehat_patient_id?: string | null;
+    registration?: BackendPatientRegistration;
+}
+
+export interface AuthSession {
+    token: string;
+    token_type: string;
+    expires_at: string;
+    user: BackendUser;
+    activeInstitution?: BackendInstitution | null;
 }

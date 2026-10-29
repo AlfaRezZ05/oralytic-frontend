@@ -9,19 +9,27 @@ import { ScreeningDashboard } from "./components/ScreeningDashboard";
 type ScreenType = "splash" | "loading" | "steps" | "login" | "dashboard";
 
 const STORAGE_KEY = "oralytic_active_screen";
+const SESSION_SPLASH_KEY = "oralytic_splash_shown_session";
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>(() => {
-    // 1. Cek dari hash URL (misal: #/dashboard atau #/login)
-    const hash = window.location.hash.replace("#/", "").replace("#", "");
-    if (["splash", "loading", "steps", "login", "dashboard"].includes(hash)) {
-      return hash as ScreenType;
-    }
-
-    // 2. Cek dari localStorage agar ketika direfresh tidak mulai dari awal
+    // 1. Cek apakah di sesi browser/tab ini splash screen sudah pernah ditampilkan
     try {
+      const hasSeenSplashThisSession = sessionStorage.getItem(SESSION_SPLASH_KEY);
+      
+      // Jika tab/web baru dibuka (sessionStorage kosong), SELALU tampilkan splash screen
+      if (!hasSeenSplashThisSession) {
+        return "splash";
+      }
+
+      // 2. Jika dalam sesi yang sama (misal user refresh saat sudah di login atau dashboard):
+      const hash = window.location.hash.replace("#/", "").replace("#", "");
+      if (["loading", "steps", "login", "dashboard"].includes(hash)) {
+        return hash as ScreenType;
+      }
+
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved && ["steps", "login", "dashboard"].includes(saved)) {
+      if (saved && ["loading", "steps", "login", "dashboard"].includes(saved)) {
         return saved as ScreenType;
       }
     } catch {
@@ -35,6 +43,10 @@ export function App() {
     setCurrentScreen(newScreen);
     try {
       localStorage.setItem(STORAGE_KEY, newScreen);
+      // Tandai bahwa splash screen sudah dilewati dalam sesi ini
+      if (newScreen !== "splash") {
+        sessionStorage.setItem(SESSION_SPLASH_KEY, "true");
+      }
       // Sinkronkan juga hash di URL
       window.location.hash = `/${newScreen}`;
     } catch {
@@ -45,6 +57,11 @@ export function App() {
   useEffect(() => {
     if (currentScreen === "splash") {
       const timer = setTimeout(() => {
+        try {
+          sessionStorage.setItem(SESSION_SPLASH_KEY, "true");
+        } catch {
+          // ignore
+        }
         changeScreen("loading");
       }, 2500);
       return () => clearTimeout(timer);
