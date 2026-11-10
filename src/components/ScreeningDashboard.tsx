@@ -10,12 +10,11 @@ import {
   Search,
   ChevronRight,
   ChevronLeft,
-  CheckCircle2,
-  Hospital,
 } from 'lucide-react';
 import type { ScreeningRecord } from '../types';
 import { getScreeningRecords, getAuthSession } from '../services/apiService';
 import { OralScreeningReportView } from './dashboard/OralScreeningReportView';
+import { ProfileSettingsView } from './dashboard/ProfileSettingsView';
 import { NewScreeningModal } from './dashboard/NewScreeningModal';
 import { initials } from './dashboard/ui';
 import logoImage from '../assets/logo.png';
@@ -38,6 +37,8 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
   // Sesi login nakes
   const session = getAuthSession();
   const userName = session?.user?.name || 'dr. Sarah Sp.A';
+  const [currentUserName, setCurrentUserName] = useState(userName);
+  const [currentUserEmail, setCurrentUserEmail] = useState(session?.user?.email || 'emaildokter@gmail.id');
   const facilityName = session?.activeInstitution?.name || 'PUSKESMAS KOTA SURABAYA';
 
   useEffect(() => {
@@ -597,7 +598,7 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
           )}
 
           {/* =========================================================================
-              TAB 3: PROFIL DOKTER / NAKES & FASKES
+              TAB 3: PROFIL DOKTER / NAKES & PENGATURAN (Sesuai Figma)
               ========================================================================= */}
           {activeTab === 'profile' && (
             <motion.div
@@ -606,65 +607,25 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               exit={{ opacity: 0, y: -10, filter: 'blur(3px)' }}
               transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-              className="flex flex-col gap-6 max-w-[680px]"
+              className="w-full"
             >
-              <div>
-                <h2 className="text-[22px] font-bold text-[#0F172A]">Profil Tenaga Kesehatan</h2>
-                <p className="text-[14px] text-slate-500">
-                  Informasi akun medis terdaftar di platform skrining ORALYTIC
-                </p>
-              </div>
-
-              <div className="bg-white rounded-[24px] p-6 sm:p-8 shadow-[0_4px_20px_rgba(15,23,42,0.04)] border border-slate-200/60 flex flex-col gap-6">
-                <div className="flex items-center gap-4 pb-6 border-b border-slate-100">
-                  <div className="w-16 h-16 rounded-full bg-[#3C6E71] text-white font-bold flex items-center justify-center text-xl shadow-md border-2 border-white">
-                    {initials(userName) || 'NA'}
-                  </div>
-                  <div className="flex flex-col">
-                    <h3 className="font-bold text-[18px] text-[#0F172A]">{userName}</h3>
-                    <span className="text-[13px] text-slate-500 font-medium">
-                      {session?.user?.role_label || 'Tenaga Kesehatan (Nakes)'}
-                    </span>
-                    <span className="text-[12px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Akun Terverifikasi
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1 p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
-                    <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                      Fasilitas Kesehatan
-                    </span>
-                    <span className="text-[14px] font-semibold text-slate-800 flex items-center gap-1.5">
-                      <Hospital className="w-4 h-4 text-slate-500" />
-                      {facilityName}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-1 p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
-                    <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                      Email Resmi
-                    </span>
-                    <span className="text-[14px] font-semibold text-slate-800">
-                      {session?.user?.email || 'nakes.rsa@sonri.test'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex justify-end">
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={onLogout}
-                    className="px-5 py-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 font-semibold text-[13px] transition-colors flex items-center gap-2 cursor-pointer"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Keluar dari Akun</span>
-                  </motion.button>
-                </div>
-              </div>
+              <ProfileSettingsView
+                userName={currentUserName}
+                userEmail={currentUserEmail}
+                facilityName={facilityName}
+                roleLabel={session?.user?.role_label || 'Dokter Gigi'}
+                records={records}
+                onLogout={onLogout}
+                onUpdateProfile={(updated) => {
+                  setCurrentUserName(updated.name);
+                  setCurrentUserEmail(updated.email);
+                  if (session?.user) {
+                    session.user.name = updated.name;
+                    session.user.email = updated.email;
+                    localStorage.setItem('sonri_auth_session', JSON.stringify(session));
+                  }
+                }}
+              />
             </motion.div>
           )}
         </AnimatePresence>
