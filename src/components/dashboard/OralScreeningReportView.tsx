@@ -15,7 +15,7 @@ import { saveScreeningRecord } from '../../services/apiService';
 interface ClinicalFindingItem {
   id: string;
   name: string;
-  severity: 'Tinggi' | 'Sedang' | 'Rendah';
+  severity: 'Tinggi' | 'Sedang' | 'Rendah' | 'Normal';
   description: string;
   percentage: number;
   status: 'pending' | 'approved' | 'corrected';
@@ -27,6 +27,161 @@ interface OralScreeningReportViewProps {
   onBack: () => void;
   onRecordUpdated?: (updated: ScreeningRecord) => void;
 }
+
+interface NutrientItem {
+  name: string;
+  dotColor: string;
+  description: string;
+  percentage: number;
+  radarScore: number;
+}
+
+const NUTRIENT_ITEMS: NutrientItem[] = [
+  {
+    name: 'Vitamin C',
+    dotColor: 'bg-[#D9383A]',
+    description: 'Inflamasi gingiva menandakan sintesis kolagen gusi terganggu',
+    percentage: 33,
+    radarScore: 3.3,
+  },
+  {
+    name: 'Kalsium',
+    dotColor: 'bg-[#E08E36]',
+    description: 'Erosi enamel konsisten dengan remineralisasi yang melambat',
+    percentage: 55,
+    radarScore: 5.5,
+  },
+  {
+    name: 'Vitamin D',
+    dotColor: 'bg-[#48A368]',
+    description: 'Kondisi palatum dan mukosa dalam batas normal',
+    percentage: 55,
+    radarScore: 5.5,
+  },
+  {
+    name: 'Zat Besi',
+    dotColor: 'bg-[#48A368]',
+    description: 'Warna lidah dan mukosa tidak menunjukkan pertanda anemia',
+    percentage: 55,
+    radarScore: 5.5,
+  },
+  {
+    name: 'Magnesium',
+    dotColor: 'bg-[#48A368]',
+    description: 'Tidak ada indikator defisiensi dari kondisi oral',
+    percentage: 55,
+    radarScore: 8.5,
+  },
+];
+
+const NutrientRadarChart = () => {
+  const size = 320;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 90;
+  const levels = [2, 4, 6, 8, 10];
+
+  const axes = [
+    { label: 'Vitamin C', value: 3.3, align: 'middle', dx: 0, dy: -12 },
+    { label: 'Kalsium', value: 5.5, align: 'start', dx: 8, dy: 3 },
+    { label: 'Vitamin D', value: 5.5, align: 'start', dx: 6, dy: 14 },
+    { label: 'Zat Besi', value: 5.5, align: 'end', dx: -6, dy: 14 },
+    { label: 'Magnesium', value: 8.5, align: 'end', dx: -8, dy: 3 },
+  ];
+
+  const getPoint = (i: number, val: number) => {
+    const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+    const r = (val / 10) * radius;
+    return {
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+    };
+  };
+
+  const dataPoints = axes.map((a, i) => getPoint(i, a.value));
+  const dataPolyString = dataPoints.map((p) => `${p.x},${p.y}`).join(' ');
+
+  return (
+    <div className="flex items-center justify-center py-2">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible select-none">
+        {/* Concentric Pentagons */}
+        {levels.map((lvl) => {
+          const pts = axes.map((_, i) => getPoint(i, lvl)).map((p) => `${p.x},${p.y}`).join(' ');
+          return (
+            <polygon
+              key={lvl}
+              points={pts}
+              fill="none"
+              stroke="#CBD5E1"
+              strokeWidth="1"
+            />
+          );
+        })}
+
+        {/* Radial Axis Lines */}
+        {axes.map((_, i) => {
+          const edge = getPoint(i, 10);
+          return (
+            <line
+              key={i}
+              x1={cx}
+              y1={cy}
+              x2={edge.x}
+              y2={edge.y}
+              stroke="#CBD5E1"
+              strokeWidth="1"
+            />
+          );
+        })}
+
+        {/* Numeric Scale on top axis: 0, 2, 4, 6, 8, 10 */}
+        {[0, 2, 4, 6, 8, 10].map((num) => {
+          const p = getPoint(0, num);
+          return (
+            <text
+              key={num}
+              x={num === 0 ? cx : cx - 1}
+              y={num === 0 ? cy + 4 : p.y + 4}
+              textAnchor="middle"
+              className="text-[9px] font-bold fill-slate-700"
+            >
+              {num}
+            </text>
+          );
+        })}
+
+        {/* Filled Turquoise Polygon */}
+        <polygon
+          points={dataPolyString}
+          fill="rgba(84, 186, 200, 0.45)"
+          stroke="#2CA3B3"
+          strokeWidth="2"
+        />
+
+        {/* Vertex Dots */}
+        {dataPoints.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r="3" fill="#2CA3B3" />
+        ))}
+
+        {/* Axis Labels */}
+        {axes.map((axis, i) => {
+          const edge = getPoint(i, 10);
+          return (
+            <text
+              key={axis.label}
+              x={edge.x + axis.dx}
+              y={edge.y + axis.dy}
+              textAnchor={axis.align as 'middle' | 'start' | 'end'}
+              className="text-[11px] font-bold fill-slate-700"
+            >
+              {axis.label}
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+};
 
 export const OralScreeningReportView = ({
   record,
@@ -48,7 +203,7 @@ export const OralScreeningReportView = ({
           severity: isHigh ? 'Tinggi' : 'Sedang',
           description: issue.description,
           percentage: isHigh ? 100 : 80,
-          status: idx === 0 ? 'approved' : 'pending', // Figma starts with 1 validated
+          status: 'pending' as const, // Clear semua di awal, tidak ada yang terpilih otomatis
         };
       });
     }
@@ -62,7 +217,7 @@ export const OralScreeningReportView = ({
         description:
           'Kemerahan dan pembengkakan pada marginal gingiva anterior. Pola konsisten dengan gingiva tahap awal hingga sedang',
         percentage: 100,
-        status: 'approved' as const, // Figma shows 1 validated initially
+        status: 'pending' as const, // Clear di awal, menunggu validasi user
       },
       {
         id: 'finding-2',
@@ -82,6 +237,15 @@ export const OralScreeningReportView = ({
         percentage: 80,
         status: 'pending' as const,
       },
+      {
+        id: 'finding-4',
+        name: 'Kondisi lidah',
+        severity: 'Normal' as const,
+        description:
+          'Tidak ditemukan geographic tongue atau perubahan warna abnormal',
+        percentage: 10,
+        status: 'pending' as const,
+      },
     ];
   }, [record]);
 
@@ -93,7 +257,9 @@ export const OralScreeningReportView = ({
   // Counters strictly reflecting the screenshot
   const totalFindings = findings.length;
   const validatedCount = findings.filter((f) => f.status !== 'pending').length;
-  const activeFindingsCount = totalFindings;
+  const activeFindingsCount = useMemo(() => {
+    return findings.filter((f) => f.severity !== 'Normal').length || 3;
+  }, [findings]);
   const deficiencyCount = 2;
 
   // Oral health score: base 70, drops if corrections are approved
@@ -106,7 +272,7 @@ export const OralScreeningReportView = ({
   }, [findings]);
 
   // Validation bar progress
-  const validationProgressPercent = totalFindings > 0 ? (validatedCount / totalFindings) * 100 : 33.3;
+  const validationProgressPercent = totalFindings > 0 ? (validatedCount / totalFindings) * 100 : 0;
 
   // Handle Actions
   const handleApprove = (id: string) => {
@@ -358,7 +524,7 @@ export const OralScreeningReportView = ({
             <motion.div
               className="h-full bg-[#1E2B38] rounded-full"
               initial={{ width: 0 }}
-              animate={{ width: `${Math.max(12, validationProgressPercent)}%` }}
+              animate={{ width: `${validationProgressPercent}%` }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             />
           </div>
@@ -399,8 +565,13 @@ export const OralScreeningReportView = ({
                   <div className="flex items-center gap-2.5">
                     {/* Circle Bullet Dot Sesuai Figma */}
                     <span
-                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isHighSeverity ? 'bg-[#D9383A]' : 'bg-[#E08E36]'
-                        }`}
+                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                        isHighSeverity
+                          ? 'bg-[#D9383A]'
+                          : item.severity === 'Sedang'
+                          ? 'bg-[#E08E36]'
+                          : 'bg-[#48A368]'
+                      }`}
                     />
                     <h3 className="text-[15px] sm:text-[16px] font-bold text-[#0F172A]">
                       {item.name} : {item.severity}
@@ -505,6 +676,55 @@ export const OralScreeningReportView = ({
               </motion.div>
             );
           })}
+        </div>
+      </section>
+
+      {/* =========================================================================
+          BAGIAN B : PROFIL NUTRISI (Radar Chart & Indikator Nutrisi Sesuai Figma)
+          ========================================================================= */}
+      <section className="flex flex-col gap-4 mt-6">
+        <h2 className="text-[20px] sm:text-[22px] font-bold text-[#0F172A] tracking-tight">
+          Bagian B : Profil Nutrisi
+        </h2>
+
+        <div className="rounded-[26px] bg-white p-6 sm:p-8 shadow-[0_4px_24px_rgba(15,23,42,0.03)] border border-slate-200/80 flex flex-col gap-7">
+          {/* Radar Chart Visualizer (Diagram Spider 5 Sumbu) */}
+          <div className="flex flex-col items-center justify-center pt-1 pb-3">
+            <NutrientRadarChart />
+          </div>
+
+          {/* Daftar 5 Indikator Nutrisi */}
+          <div className="flex flex-col gap-6 pt-2">
+            {NUTRIENT_ITEMS.map((nutrient, idx) => (
+              <div key={nutrient.name} className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${nutrient.dotColor}`} />
+                  <h3 className="text-[15px] sm:text-[16px] font-bold text-[#0F172A]">
+                    {nutrient.name}
+                  </h3>
+                </div>
+
+                <p className="text-[13px] sm:text-[14px] text-[#475569] leading-relaxed">
+                  {nutrient.description}
+                </p>
+
+                {/* Bar Persentase Nutrisi */}
+                <div className="flex items-center gap-3.5 mt-1">
+                  <div className="h-1.5 flex-1 bg-slate-200 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-[#5B6B79] rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${nutrient.percentage}%` }}
+                      transition={{ duration: 0.8, delay: 0.15 + idx * 0.05 }}
+                    />
+                  </div>
+                  <span className="text-[13px] font-semibold text-slate-600 tabular-nums min-w-[36px] text-right">
+                    {nutrient.percentage}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
