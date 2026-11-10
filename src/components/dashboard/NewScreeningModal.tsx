@@ -19,8 +19,6 @@ interface NewScreeningModalProps {
   onRecordAdded: (record: ScreeningRecord) => void;
 }
 
-type OralPreset = 'healthy' | 'caries' | 'gingivitis' | 'severe';
-
 const ANGLE_TABS = [
   { id: 'depan', label: 'Depan' },
   { id: 'oklusal_atas', label: 'Oklusal Atas' },
@@ -132,7 +130,6 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
   const [selectedAngle, setSelectedAngle] = useState<AngleId>('depan');
   const [capturedAngles, setCapturedAngles] = useState<Record<string, string>>({});
   const [isFlashing, setIsFlashing] = useState(false);
-  const oralConditionPreset: OralPreset = 'caries';
 
   // Langkah 3: Menganalisis
   const [analysisProgress, setAnalysisProgress] = useState(70);
@@ -174,17 +171,21 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
   // Selesai Step 2 & lanjut ke Step 3 (Menganalisis)
   const handleStartAnalysis = () => {
     setCurrentStep(3);
-    // Jalankan timer animasi progress
+    // Jalankan timer animasi progress dari 70% ke 100%
     let p = 70;
     const interval = setInterval(() => {
-      p += 2;
+      p += 3;
       if (p >= 100) {
         clearInterval(interval);
         setAnalysisProgress(100);
+        // Otomatis lanjut ke tampilan Laporan Skrining Oral setelah selesai menganalisis
+        setTimeout(() => {
+          handleFinalizeRecord();
+        }, 700);
       } else {
         setAnalysisProgress(p);
       }
-    }, 400);
+    }, 240);
   };
 
   // Ambil foto sudut: otomatis lanjut sendiri ke posisi selanjutnya
@@ -236,46 +237,29 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
       const weightResult = calculateWeightStatus(ageMonths, weightNum, gender);
       const wastingResult = calculateWastingStatus(heightNum, weightNum, gender);
 
-      let oralIssues: OralIssue[] = [];
-      let oralResult: 'Healthy' | 'At Risk of Caries' | 'Needs Referral' = 'Healthy';
-      let oralReason = 'Rongga mulut dan gusi terpantau sehat tanpa tanda karies aktif.';
+      let oralResult: 'Healthy' | 'At Risk of Caries' | 'Needs Referral' = 'Needs Referral';
+      let oralReason = 'Ditemukan 3 temuan klinis: inflamasi gingiva, akumulasi plak, dan erosi enamel ringan.';
 
-      if (oralConditionPreset === 'caries') {
-        oralResult = 'Needs Referral';
-        oralReason = 'Terdeteksi lesi karies aktif pada permukaan oklusal gigi sulung.';
-        oralIssues = [
-          {
-            diseaseName: 'Dental caries on pit and fissure surface penetrating into dentin',
-            description: 'Karies kavitas aktif menembus dentin pada gigi molar sulung.',
-            boundingBox: { x: 38, y: 44, width: 22, height: 26 },
-          },
-        ];
-      } else if (oralConditionPreset === 'gingivitis') {
-        oralResult = 'At Risk of Caries';
-        oralReason = 'Terdeteksi akumulasi plak dan radang gusi ringan (gingivitis).';
-        oralIssues = [
-          {
-            diseaseName: 'Acute gingivitis',
-            description: 'Marginal gingiva kemerahan dengan perdarahan saat probing.',
-            boundingBox: { x: 40, y: 60, width: 20, height: 20 },
-          },
-        ];
-      } else if (oralConditionPreset === 'severe') {
-        oralResult = 'Needs Referral';
-        oralReason = 'Karies ganda disertai nyeri kunyah kronis dan peradangan gusi.';
-        oralIssues = [
-          {
-            diseaseName: 'Dental caries on pit and fissure surface penetrating into dentin',
-            description: 'Karies dentin aktif multipel.',
-            boundingBox: { x: 32, y: 35, width: 28, height: 30 },
-          },
-          {
-            diseaseName: 'Acute gingivitis',
-            description: 'Radang gusi akut interdental.',
-            boundingBox: { x: 45, y: 62, width: 24, height: 22 },
-          },
-        ];
-      }
+      const oralIssues: OralIssue[] = [
+        {
+          diseaseName: 'Inflamasi gingiva',
+          description:
+            'Kemerahan dan pembengkakan pada marginal gingiva anterior. Pola konsisten dengan gingiva tahap awal hingga sedang',
+          boundingBox: { x: 30, y: 45, width: 25, height: 20 },
+        },
+        {
+          diseaseName: 'Akumulasi plak',
+          description:
+            'Biofilm terdeteksi di area servikal dan interproksimal. Kebersihan supra-gingiva perlu ditingkatkan.',
+          boundingBox: { x: 55, y: 38, width: 22, height: 24 },
+        },
+        {
+          diseaseName: 'Erosi enamel ringan',
+          description:
+            'Permukaan enamel tampak lebih translusen dari normal. Kemungkinan paparan asam berulang',
+          boundingBox: { x: 40, y: 60, width: 20, height: 18 },
+        },
+      ];
 
       const isStunted = (stuntingResult.zScore ?? 0) < -2;
       const nutritionResult: 'Needs Referral' | 'Needs Monitoring' | 'Normal' = isStunted
@@ -287,17 +271,18 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
         ? `Tinggi menurut Umur (TB/U) Z-Score ${stuntingResult.zScore?.toFixed(2)} SD berada di bawah ambang batas -2 SD (Kategori Pendek / Stunting).`
         : `Tinggi menurut Umur Z-Score ${stuntingResult.zScore?.toFixed(2)} SD dalam rentang pertumbuhan normal.`;
 
+      const isOralIssueFound = oralIssues.length > 0;
       const conclusion =
-        isStunted && oralResult !== 'Healthy'
+        isStunted && isOralIssueFound
           ? 'Ditemukan perawakan pendek (stunting) yang diperberat oleh gangguan pengunyahan akibat masalah gigi anak.'
           : isStunted
           ? 'Pasien terindikasi perawakan pendek (stunting). Diperlukan intervensi PMT dan evaluasi asupan protein hewani.'
-          : oralResult !== 'Healthy'
+          : isOralIssueFound
           ? 'Pertumbuhan tinggi normal, namun terindikasi masalah gigi aktif yang perlu segera ditangani dokter gigi.'
           : 'Pertumbuhan anak dan kebersihan rongga mulut dalam kondisi baik.';
 
       const recommendations = [
-        oralResult !== 'Healthy'
+        isOralIssueFound
           ? 'Rujuk ke Poli Gigi / Dokter Gigi Spesialis Anak untuk perawatan lesi karies.'
           : 'Lakukan kontrol rutin kesehatan gigi setiap 6 bulan sekali.',
         isStunted
@@ -347,7 +332,7 @@ export const NewScreeningModal = ({ onClose, onRecordAdded }: NewScreeningModalP
         {
           imageBase64: '',
           analysisResult: {
-            hygieneAssessment: (oralResult === 'Healthy' ? 'Good' : 'Fair') as 'Good' | 'Fair' | 'Poor',
+            hygieneAssessment: (isOralIssueFound ? 'Fair' : 'Good') as 'Good' | 'Fair' | 'Poor',
             issues: oralIssues,
           },
         },

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { ScreeningRecord } from '../types';
 import { getScreeningRecords, getAuthSession } from '../services/apiService';
-import { PatientDetailModal } from './dashboard/PatientDetailModal';
+import { OralScreeningReportView } from './dashboard/OralScreeningReportView';
 import { NewScreeningModal } from './dashboard/NewScreeningModal';
 import { initials } from './dashboard/ui';
 import logoImage from '../assets/logo.png';
@@ -57,6 +57,13 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
     setRecords((prev) => [newRecord, ...prev]);
     setIsNewScreeningOpen(false);
     setSelectedRecord(newRecord);
+  };
+
+  const handleRecordUpdated = (updatedRecord: ScreeningRecord) => {
+    setRecords((prev) =>
+      prev.map((r) => (r.id === updatedRecord.id ? updatedRecord : r))
+    );
+    setSelectedRecord(updatedRecord);
   };
 
   // Hitung data untuk 3 kartu statistik (sesuai Figma: 3 hari ini, 2 tervalidasi, 1 menunggu)
@@ -215,7 +222,10 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setActiveTab(key)}
+                  onClick={() => {
+                    setActiveTab(key);
+                    setSelectedRecord(null);
+                  }}
                   title={label}
                   className={`relative flex items-center ${
                     isSidebarCollapsed ? 'justify-center px-0 py-3' : 'gap-3.5 px-4 py-3'
@@ -284,40 +294,48 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
           KONTEN UTAMA (Elemen Terpisah - Satu-Satunya Bagian yang Di-Scroll)
           ========================================================================= */}
       <main className="relative z-10 flex-1 min-w-0 h-screen overflow-y-auto flex flex-col px-6 sm:px-10 lg:px-12 py-8 max-w-[1360px] mx-auto w-full">
-        {/* Top Header Row */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
-          <div className="flex flex-col gap-1">
-            <span className="text-[12px] font-bold tracking-wider text-[#64748B] uppercase">
-              {facilityName}
-            </span>
-            <h1 className="text-[26px] sm:text-[32px] font-bold text-[#0F172A] tracking-tight">
-              Selamat Datang, {userName}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 border border-slate-200/80 rounded-lg text-[13px] text-[#475569] font-medium shadow-xs">
-                <Calendar className="w-3.5 h-3.5 text-[#2F4156]" />
-                <span>{todayFormatted}</span>
+        {selectedRecord ? (
+          <OralScreeningReportView
+            record={selectedRecord}
+            onBack={() => setSelectedRecord(null)}
+            onRecordUpdated={handleRecordUpdated}
+          />
+        ) : (
+          <>
+            {/* Top Header Row */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
+              <div className="flex flex-col gap-1">
+                <span className="text-[12px] font-bold tracking-wider text-[#64748B] uppercase">
+                  {facilityName}
+                </span>
+                <h1 className="text-[26px] sm:text-[32px] font-bold text-[#0F172A] tracking-tight">
+                  Selamat Datang, {userName}
+                </h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 border border-slate-200/80 rounded-lg text-[13px] text-[#475569] font-medium shadow-xs">
+                    <Calendar className="w-3.5 h-3.5 text-[#2F4156]" />
+                    <span>{todayFormatted}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* User Avatar Circle */}
-          <div className="flex items-center gap-3">
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-12 h-12 rounded-full bg-[#3C6E71] text-white font-bold flex items-center justify-center text-base shadow-sm border-2 border-white cursor-pointer hover:ring-2 hover:ring-[#2F4156]/20 transition-all"
-              title={userName}
-            >
-              {initials(userName) || 'NA'}
-            </motion.div>
-          </div>
-        </header>
+              {/* User Avatar Circle */}
+              <div className="flex items-center gap-3">
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="w-12 h-12 rounded-full bg-[#3C6E71] text-white font-bold flex items-center justify-center text-base shadow-sm border-2 border-white cursor-pointer hover:ring-2 hover:ring-[#2F4156]/20 transition-all"
+                  title={userName}
+                >
+                  {initials(userName) || 'NA'}
+                </motion.div>
+              </div>
+            </header>
 
-        {/* =========================================================================
-            DYNAMIC TAB TRANSITIONS DENGAN ANIMATEPRESENCE (Ultra Smooth)
-            ========================================================================= */}
-        <AnimatePresence mode="wait">
+            {/* =========================================================================
+                DYNAMIC TAB TRANSITIONS DENGAN ANIMATEPRESENCE (Ultra Smooth)
+                ========================================================================= */}
+            <AnimatePresence mode="wait">
           {/* =========================================================================
               TAB 1: BERANDA (Dashboard Utama Sesuai Figma)
               ========================================================================= */}
@@ -650,19 +668,9 @@ export const ScreeningDashboard = ({ onLogout }: ScreeningDashboardProps) => {
             </motion.div>
           )}
         </AnimatePresence>
+        </>
+      )}
       </main>
-
-      {/* =========================================================================
-          MODAL DETAIL PASIEN (Pertumbuhan, Oral, dan Plan)
-          ========================================================================= */}
-      <AnimatePresence>
-        {selectedRecord && (
-          <PatientDetailModal
-            record={selectedRecord}
-            onClose={() => setSelectedRecord(null)}
-          />
-        )}
-      </AnimatePresence>
 
       {/* =========================================================================
           MODAL SKRINING BARU (Mulai Skrining Baru - Sesuai Figma Langkah 1 dari 3)

@@ -5,6 +5,7 @@ import { LoadingScreen } from "./components/LoadingScreen";
 import { OnboardingSteps } from "./components/OnboardingSteps";
 import { LoginScreen } from "./components/LoginScreen";
 import { ScreeningDashboard } from "./components/ScreeningDashboard";
+import { getAuthSession, logoutFromBackend } from "./services/apiService";
 
 type ScreenType = "splash" | "loading" | "steps" | "login" | "dashboard";
 
@@ -13,16 +14,22 @@ const SESSION_SPLASH_KEY = "oralytic_splash_shown_session";
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>(() => {
-    // 1. Cek apakah di sesi browser/tab ini splash screen sudah pernah ditampilkan
     try {
+      // 1. Prioritaskan jika pengguna sudah memiliki sesi login aktif (Nakes terautentikasi)
+      const session = getAuthSession();
+      if (session?.token) {
+        return "dashboard";
+      }
+
+      // 2. Cek apakah di sesi browser/tab ini splash screen sudah pernah ditampilkan
       const hasSeenSplashThisSession = sessionStorage.getItem(SESSION_SPLASH_KEY);
       
-      // Jika tab/web baru dibuka (sessionStorage kosong), SELALU tampilkan splash screen
+      // Jika tab/web baru dibuka (belum login & belum lihat splash), tampilkan splash screen
       if (!hasSeenSplashThisSession) {
         return "splash";
       }
 
-      // 2. Jika dalam sesi yang sama (misal user refresh saat sudah di login atau dashboard):
+      // 3. Jika dalam sesi yang sama (misal user refresh di layar login/steps):
       const hash = window.location.hash.replace("#/", "").replace("#", "");
       if (["loading", "steps", "login", "dashboard"].includes(hash)) {
         return hash as ScreenType;
@@ -56,17 +63,28 @@ export function App() {
 
   useEffect(() => {
     if (currentScreen === "splash") {
+      const session = getAuthSession();
       const timer = setTimeout(() => {
         try {
           sessionStorage.setItem(SESSION_SPLASH_KEY, "true");
         } catch {
           // ignore
         }
-        changeScreen("loading");
+        // Jika sudah ada sesi login, langsung lompat ke dashboard
+        if (session?.token) {
+          changeScreen("dashboard");
+        } else {
+          changeScreen("loading");
+        }
       }, 2500);
       return () => clearTimeout(timer);
     }
   }, [currentScreen]);
+
+  const handleLogout = async () => {
+    await logoutFromBackend();
+    changeScreen("login");
+  };
 
   return (
     <div className="relative w-full h-screen bg-white font-sans antialiased text-[#1E293B] flex flex-col overflow-hidden">
@@ -90,7 +108,7 @@ export function App() {
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="w-full h-screen flex flex-col flex-1 overflow-hidden"
           >
-            <ScreeningDashboard onLogout={() => changeScreen("login")} />
+            <ScreeningDashboard onLogout={handleLogout} />
           </motion.div>
         )}
       </AnimatePresence>
