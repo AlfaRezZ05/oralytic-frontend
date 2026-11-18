@@ -11,8 +11,17 @@ import { INITIAL_MOCK_RECORDS } from '../data/mockScreeningRecords';
 const STORAGE_KEY = 'screeningRecords';
 const AUTH_STORAGE_KEY = 'sonri_auth_session';
 
-// Base API URL (relative path, proxied by Vite in dev to http://127.0.0.1:8000)
-const API_BASE_URL = '/api/v1';
+// Base API URL: uses VITE_API_BASE_URL in production (e.g. Rumahweb -> external backend),
+// or falls back to relative '/api/v1' (proxied by Vite in local dev to http://127.0.0.1:8000)
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+export const API_BASE_URL = rawApiBaseUrl
+  ? rawApiBaseUrl.replace(/\/+$/, '')
+  : '/api/v1';
+
+const rawAiEngineUrl = import.meta.env.VITE_AI_ENGINE_URL as string | undefined;
+export const AI_ENGINE_BASE_URL = rawAiEngineUrl
+  ? rawAiEngineUrl.replace(/\/+$/, '')
+  : '';
 
 // ===================================================================================
 // AUTHENTICATION & SESSION MANAGEMENT
